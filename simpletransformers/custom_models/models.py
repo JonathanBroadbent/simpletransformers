@@ -5,6 +5,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from transformers import (
     BertModel,
     BertPreTrainedModel,
+    BertForSequenceClassification,
     DistilBertModel,
     ElectraForMaskedLM,
     ElectraForPreTraining,
@@ -61,6 +62,37 @@ from transformers.models.roberta.modeling_roberta import (
 from transformers.models.xlm_roberta.configuration_xlm_roberta import XLMRobertaConfig
 from simpletransformers.custom_models.retrieval_autoencoder import Autoencoder
 
+class BertForSequenceClassificationWithFeature(BertForSequenceClassification):
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        labels=None,
+        temperature=None,
+        **kwargs
+    ):
+        outputs = self.bert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            **kwargs
+        )
+        pooled_output = outputs[1]
+        pooled_output = self.dropout(pooled_output)
+        if temperature is not None:
+            # Ensure temperature shape is (batch_size, 1)
+            pooled_output = torch.cat([pooled_output, temperature], dim=1)
+        logits = self.classifier(pooled_output)
+        loss = None
+        if labels is not None:
+            loss_fct = torch.nn.MSELoss()
+            if self.num_labels == 1:
+                loss = loss_fct(logits.squeeze(), labels.squeeze())
+            else:
+                loss = loss_fct(logits, labels)
+        output = (logits,) + outputs[2:]
+        return ((loss,) + output) if loss is not None else output
 
 class BertForMultiLabelSequenceClassification(BertPreTrainedModel):
     """
@@ -1239,3 +1271,4 @@ class RobertaWithAutoEncoderForMaskedLM(RobertaPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+

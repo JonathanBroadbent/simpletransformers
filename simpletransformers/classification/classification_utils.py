@@ -61,7 +61,7 @@ class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
     def __init__(
-        self, guid, text_a, text_b=None, label=None, x0=None, y0=None, x1=None, y1=None
+        self, guid, text_a, text_b=None, label=None, x0=None, y0=None, x1=None, y1=None, temperature=None
     ):
         """
         Constructs a InputExample.
@@ -84,6 +84,7 @@ class InputExample(object):
             self.bboxes = None
         else:
             self.bboxes = [[a, b, c, d] for a, b, c, d in zip(x0, y0, x1, y1)]
+        self.temperature = temperature
 
     def __repr__(self):
         if self.bboxes:
@@ -110,13 +111,14 @@ class InputExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id, bboxes=None):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id, bboxes=None, temperature=None):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
         if bboxes:
             self.bboxes = bboxes
+        self.temperature=temperature
 
 
 def preprocess_data_multiprocessing(data):
@@ -207,12 +209,16 @@ def build_classification_dataset(
     else:
         logger.info(" Converting to features started. Cache is not used.")
 
+        temperature, text_b = None, None
         if len(data) == 3:
-            # Sentence pair task
-            text_a, text_b, labels = data
+            # check the dtype of data
+            if isinstance(data[1][0], str):
+                # Sentence pair task
+                text_a, text_b, labels = data
+            else:
+                text_a, labels, temperature = data
         else:
             text_a, labels = data
-            text_b = None
 
         # If labels_map is defined, then labels need to be replaced with ints
         if args.labels_map and not args.regression:
@@ -267,19 +273,22 @@ def build_classification_dataset(
             labels = torch.tensor(labels, dtype=torch.long)
         elif output_mode == "regression":
             labels = torch.tensor(labels, dtype=torch.float)
-
-        data = (examples, labels)
+        if temperature is not None:
+            temperature torch.tensor(temperature, dtype=torch.float)
+            data = (examples, labels, temperature)
+        else:
+            data = (examples, labels)
 
         if not args.no_cache and not no_cache:
             logger.info(" Saving features into cached file %s", cached_features_file)
             torch.save(data, cached_features_file)
 
-    return (examples, labels)
+    return data
 
 
 class ClassificationDataset(Dataset):
     def __init__(self, data, tokenizer, args, mode, multi_label, output_mode, no_cache):
-        self.examples, self.labels = build_classification_dataset(
+        self.examples, self.labels, self.temperature = build_classification_dataset(
             data, tokenizer, args, mode, multi_label, output_mode, no_cache
         )
 
@@ -287,11 +296,12 @@ class ClassificationDataset(Dataset):
         return len(self.examples["input_ids"])
 
     def __getitem__(self, index):
-        return (
-            {key: self.examples[key][index] for key in self.examples},
-            self.labels[index],
-        )
+        item = {key: self.examples[key][index] for key in self.examples}
+        # add temperature if present
+        if hasattr(self, "temperature"):
+            item["temperature"] = self.["temperature"][index]
 
+        return (item, self.labels[index])
 
 def map_labels_to_numeric(example, multi_label, args):
     if multi_label:

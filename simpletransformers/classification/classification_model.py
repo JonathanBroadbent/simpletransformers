@@ -134,6 +134,7 @@ from simpletransformers.config.utils import sweep_config_to_sweep_values
 from simpletransformers.losses.loss_utils import init_loss
 
 # from simpletransformers.custom_models.models import ElectraForSequenceClassification
+from simpletransformers.custom_models.models import BertForSequenceClassificationWithFeature
 
 
 try:
@@ -167,6 +168,8 @@ MODELS_WITH_ADD_PREFIX_SPACE = [
 ]
 
 MODELS_WITHOUT_SLIDING_WINDOW_SUPPORT = ["squeezebert"]
+
+DEFAULT_TEMP = 298
 
 
 class ClassificationModel:
@@ -206,6 +209,7 @@ class ClassificationModel:
             "albert": (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer),
             "auto": (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
             "bert": (BertConfig, BertForSequenceClassification, BertTokenizerFast),
+            "bertwithfeature": (BertConfig, BertForSequenceClassificationWithFeature, BertTokenizerFast),
             "bertweet": (
                 RobertaConfig,
                 RobertaForSequenceClassification,
@@ -580,8 +584,8 @@ class ClassificationModel:
             if "text" in train_df.columns and "labels" in train_df.columns:
                 if self.args.model_type in ["layoutlm", "layoutlmv2"]:
                     train_examples = [
-                        InputExample(i, text, None, label, x0, y0, x1, y1)
-                        for i, (text, label, x0, y0, x1, y1) in enumerate(
+                        InputExample(i, text, None, label, x0, y0, x1, y1, temperature)
+                        for i, (text, label, x0, y0, x1, y1, temperature) in enumerate(
                             zip(
                                 train_df["text"].astype(str),
                                 train_df["labels"],
@@ -589,6 +593,7 @@ class ClassificationModel:
                                 train_df["y0"],
                                 train_df["x1"],
                                 train_df["y1"],
+                                train_df['temperature'] if 'temperature' in train_df.columns else [DEFAULT_TEMP] * len(train_df)
                             )
                         )
                     ]
@@ -596,6 +601,7 @@ class ClassificationModel:
                     train_examples = (
                         train_df["text"].astype(str).tolist(),
                         train_df["labels"].tolist(),
+                        train_df["temperature"].tolist() if "temperature" in train_df.columns else [DEFAULT_TEMP] * len(train_df)
                     )
             elif "text_a" in train_df.columns and "text_b" in train_df.columns:
                 if self.args.model_type in ["layoutlm", "layoutlmv2"]:
