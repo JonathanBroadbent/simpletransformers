@@ -27,10 +27,8 @@ from transformers import (
 logger = logging.getLogger(__name__)
 
 if transformers.__version__ < "4.2.0":
-    shift_tokens_right = (
-        lambda input_ids, pad_token_id, decoder_start_token_id: _shift_tokens_right(
-            input_ids, pad_token_id
-        )
+    shift_tokens_right = lambda input_ids, pad_token_id, decoder_start_token_id: _shift_tokens_right(
+        input_ids, pad_token_id
     )
 else:
     shift_tokens_right = _shift_tokens_right
@@ -50,7 +48,7 @@ def preprocess_batch_for_hf_dataset(
 
         target_ids = encoder_tokenizer.batch_encode_plus(
             dataset["target_text"],
-            max_length=args.max_length,
+            max_length=args.max_seq_length,
             padding="max_length",
             return_tensors="np",
             truncation=True,
@@ -68,7 +66,6 @@ def preprocess_batch_for_hf_dataset(
             src_lang=args.src_lang,
             tgt_lang=args.tgt_lang,
             max_length=args.max_seq_length,
-            max_target_length=args.max_length,
             padding="max_length",  # pad_to_max_length=True won't work in this case
             return_tensors="np",
             truncation=True,
@@ -101,7 +98,7 @@ def preprocess_batch_for_hf_dataset(
         try:
             target_inputs = encoder_tokenizer.generator(
                 dataset["target_text"],
-                max_length=args.max_length,
+                max_length=args.max_seq_length,
                 padding="max_length",
                 return_tensors="np",
                 truncation=True,
@@ -116,7 +113,7 @@ def preprocess_batch_for_hf_dataset(
             dataset["target_text"] = [str(d) for d in dataset["target_text"]]
             target_inputs = encoder_tokenizer.generator(
                 dataset["target_text"],
-                max_length=args.max_length,
+                max_length=args.max_seq_length,
                 padding="max_length",
                 return_tensors="np",
                 truncation=True,
@@ -140,7 +137,7 @@ def preprocess_batch_for_hf_dataset(
 
         target_inputs = decoder_tokenizer(
             dataset["target_text"],
-            max_length=args.max_length,
+            max_length=args.max_seq_length,
             padding="max_length",
             return_tensors="np",
             truncation=True,

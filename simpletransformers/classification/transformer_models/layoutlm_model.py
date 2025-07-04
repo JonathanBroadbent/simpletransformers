@@ -27,6 +27,7 @@ class LayoutLMForSequenceClassification(BertPreTrainedModel):
         inputs_embeds=None,
         labels=None,
     ):
+
         outputs = self.bert(
             input_ids=input_ids,
             bbox=bbox,

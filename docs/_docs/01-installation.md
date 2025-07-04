@@ -9,7 +9,7 @@ toc: true
 It's a good idea to always use virtual environments when working with Python packages.
 Anaconda/Miniconda is a package manager that lets you create virtual environments and manage package installations smoothly.
 
-Follow the instructions given below to install Simple Transformers with Anaconda (or Miniconda, a lighter version of Anaconda).
+Follow the instructions given below to install Simple Transformers using with Anaconda (or miniconda, a lighter version of anaconda).
 
 ## Installation steps
 
@@ -22,15 +22,12 @@ Follow the instructions given below to install Simple Transformers with Anaconda
 3. Using a CUDA capable GPU is recommended.
    To install Pytorch with CUDA support:
    ```shell
-   conda install pytorch pytorch-cuda=11.7 -c pytorch -c nvidia
+   conda install pytorch>=1.6 cudatoolkit=11.0 -c pytorch
    ```
    CPU only:
    ```shell
    conda install pytorch cpuonly -c pytorch
    ```
-
-   **Note:** Check the [Pytorch website](https://pytorch.org/get-started/locally/) for the latest instructions.
-    {: .notice--info}
 
 4. Install simpletransformers.
 `pip install simpletransformers`

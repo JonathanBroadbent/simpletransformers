@@ -25,7 +25,6 @@ model = MultiLabelClassificationModel(
         "num_train_epochs": 5,
     },
 )
-
 # You can set class weights by using the optional weight argument
 print(train_df.head())
 

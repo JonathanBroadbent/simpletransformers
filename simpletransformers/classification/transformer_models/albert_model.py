@@ -56,6 +56,7 @@ class AlbertForSequenceClassification(AlbertPreTrainedModel):
         inputs_embeds=None,
         labels=None,
     ):
+
         outputs = self.albert(
             input_ids=input_ids,
             attention_mask=attention_mask,

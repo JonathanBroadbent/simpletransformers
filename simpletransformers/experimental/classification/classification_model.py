@@ -20,14 +20,14 @@ from sklearn.metrics import (
     matthews_corrcoef,
     mean_squared_error,
 )
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm.auto import tqdm, trange
-from torch.optim import AdamW
 from transformers import (
     WEIGHTS_NAME,
+    AdamW,
     AlbertConfig,
     AlbertTokenizer,
     BertConfig,
@@ -305,7 +305,7 @@ class ClassificationModel:
         model = self.model
         args = self.args
 
-        tb_writer = SummaryWriter(log_dir=args["tensorboard_dir"])
+        tb_writer = SummaryWriter(logdir=args["tensorboard_dir"])
         train_sampler = RandomSampler(train_dataset)
         train_dataloader = DataLoader(
             train_dataset, sampler=train_sampler, batch_size=args["train_batch_size"]

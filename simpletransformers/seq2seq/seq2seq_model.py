@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 import transformers
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
@@ -25,8 +25,7 @@ from transformers.optimization import (
     get_cosine_with_hard_restarts_schedule_with_warmup,
     get_polynomial_decay_schedule_with_warmup,
 )
-from torch.optim import AdamW
-from transformers.optimization import Adafactor
+from transformers.optimization import AdamW, Adafactor
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -36,9 +35,7 @@ from transformers import (
     BartTokenizerFast,
     MBartConfig,
     MBartForConditionalGeneration,
-    MBartTokenizerFast,
-    MBart50Tokenizer,
-    MBart50TokenizerFast,
+    MBartTokenizer,
     BertConfig,
     BertModel,
     BertTokenizerFast,
@@ -102,8 +99,7 @@ logger = logging.getLogger(__name__)
 MODEL_CLASSES = {
     "auto": (AutoConfig, AutoModel, AutoTokenizer),
     "bart": (BartConfig, BartForConditionalGeneration, BartTokenizerFast),
-    "mbart": (MBartConfig, MBartForConditionalGeneration, MBartTokenizerFast),
-    "mbart50": (MBartConfig, MBartForConditionalGeneration, MBart50TokenizerFast),
+    "mbart": (MBartConfig, MBartForConditionalGeneration, MBartTokenizer),
     "bert": (BertConfig, BertModel, BertTokenizerFast),
     "camembert": (CamembertConfig, CamembertModel, CamembertTokenizerFast),
     "distilbert": (DistilBertConfig, DistilBertModel, DistilBertTokenizerFast),
@@ -131,13 +127,13 @@ class Seq2SeqModel:
         knowledge_dataset=None,
         index_path=None,
         dpr_ctx_encoder_model_name=None,
-        rag_question_encoder_model_name=None,
         config=None,
         args=None,
         use_cuda=True,
         cuda_device=-1,
         **kwargs,
     ):
+
         """
         Initializes a Seq2SeqModel.
 
@@ -242,7 +238,6 @@ class Seq2SeqModel:
                         index_name="exact",
                         use_dummy_dataset=True,
                         config=config,
-                        cache_dir=args.dataset_cache_dir,
                     )
                 elif index_name == "legacy":
                     self.retriever = retriever_class.from_pretrained(
@@ -250,7 +245,6 @@ class Seq2SeqModel:
                         index_name="legacy",
                         use_dummy_dataset=False,
                         config=config,
-                        cache_dir=args.dataset_cache_dir,
                     )
             else:
                 if os.path.isdir(knowledge_dataset):
@@ -295,10 +289,7 @@ class Seq2SeqModel:
                 )
 
             self.model = model_class.from_pretrained(
-                encoder_decoder_name,
-                retriever=self.retriever,
-                questioni_encoder=rag_question_encoder_model_name,
-                config=config,
+                encoder_decoder_name, retriever=self.retriever, config=config
             )
             self.config = self.model.config
         else:
@@ -309,9 +300,9 @@ class Seq2SeqModel:
             else:
                 config_class, model_class, tokenizer_class = MODEL_CLASSES[encoder_type]
 
-            if encoder_decoder_type in ["bart", "mbart", "mbart50", "marian"]:
+            if encoder_decoder_type in ["bart", "mbart", "marian"]:
                 self.model = model_class.from_pretrained(encoder_decoder_name)
-                if encoder_decoder_type in ["bart", "mbart", "mbart50"]:
+                if encoder_decoder_type in ["bart", "mbart"]:
                     self.encoder_tokenizer = tokenizer_class.from_pretrained(
                         encoder_decoder_name
                     )
@@ -401,7 +392,6 @@ class Seq2SeqModel:
             train_data: Pandas DataFrame containing the 2 columns - `input_text`, `target_text`.
                         - `input_text`: The input text sequence.
                         - `target_text`: The target text sequence
-                        If `use_hf_datasets` is True, then this may also be the path to a TSV file with the same columns.
             output_dir: The directory where model files will be saved. If not given, self.args.output_dir will be used.
             show_running_loss (optional): Set to False to prevent running loss from being printed to console. Defaults to True.
             args (optional): Optional changes to the args dict of the model. Any changes made will persist for the model.
@@ -490,7 +480,7 @@ class Seq2SeqModel:
         model = self.model
         args = self.args
 
-        tb_writer = SummaryWriter(log_dir=args.tensorboard_dir)
+        tb_writer = SummaryWriter(logdir=args.tensorboard_dir)
         train_sampler = RandomSampler(train_dataset)
         train_dataloader = DataLoader(
             train_dataset,
@@ -582,7 +572,6 @@ class Seq2SeqModel:
                 optimizer_grouped_parameters,
                 lr=args.learning_rate,
                 eps=args.adam_epsilon,
-                betas=args.adam_betas,
             )
         elif args.optimizer == "Adafactor":
             optimizer = Adafactor(
@@ -597,7 +586,7 @@ class Seq2SeqModel:
                 relative_step=args.adafactor_relative_step,
                 warmup_init=args.adafactor_warmup_init,
             )
-
+            print("Using Adafactor for T5")
         else:
             raise ValueError(
                 "{} is not a valid optimizer class. Please use one of ('AdamW', 'Adafactor') instead.".format(
@@ -718,7 +707,6 @@ class Seq2SeqModel:
             )
             wandb.run._label(repo="simpletransformers")
             wandb.watch(self.model)
-            self.wandb_run_id = wandb.run.id
 
         if args.fp16:
             from torch.cuda import amp
@@ -735,7 +723,7 @@ class Seq2SeqModel:
             )
             batch_iterator = tqdm(
                 train_dataloader,
-                desc=f"Running Epoch {epoch_number + 1} of {args.num_train_epochs}",
+                desc=f"Running Epoch {epoch_number} of {args.num_train_epochs}",
                 disable=args.silent,
                 mininterval=0,
             )
@@ -765,7 +753,7 @@ class Seq2SeqModel:
 
                 if show_running_loss:
                     batch_iterator.set_description(
-                        f"Epochs {epoch_number+1}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
+                        f"Epochs {epoch_number}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
                     )
 
                 if args.gradient_accumulation_steps > 1:
@@ -975,8 +963,7 @@ class Seq2SeqModel:
 
             epoch_number += 1
             output_dir_current = os.path.join(
-                output_dir,
-                "checkpoint-{}-epoch-{}".format(global_step, epoch_number),
+                output_dir, "checkpoint-{}-epoch-{}".format(global_step, epoch_number)
             )
 
             if args.save_model_every_epoch or args.evaluate_during_training:
@@ -1129,7 +1116,6 @@ class Seq2SeqModel:
             eval_data: Pandas DataFrame containing the 2 columns - `input_text`, `target_text`.
                         - `input_text`: The input text sequence.
                         - `target_text`: The target text sequence.
-                        If `use_hf_datasets` is True, then this may also be the path to a TSV file with the same columns.
             output_dir: The directory where model files will be saved. If not given, self.args.output_dir will be used.
             verbose: If verbose, results will be printed to the console on completion of evaluation.
             silent: If silent, tqdm progress bars will be hidden.
@@ -1189,6 +1175,9 @@ class Seq2SeqModel:
         eval_dataloader = DataLoader(
             eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
         )
+
+        if args.n_gpu > 1:
+            model = torch.nn.DataParallel(model)
 
         eval_loss = 0.0
         nb_eval_steps = 0
@@ -1263,7 +1252,7 @@ class Seq2SeqModel:
                     return_tensors="pt",
                     truncation=True,
                 )["input_ids"]
-            elif self.args.model_type in ["mbart", "mbart50"]:
+            elif self.args.model_type in ["mbart"]:
                 input_ids = self.encoder_tokenizer.prepare_seq2seq_batch(
                     src_texts=batch,
                     max_length=self.args.max_seq_length,
@@ -1316,41 +1305,15 @@ class Seq2SeqModel:
                     num_return_sequences=self.args.num_return_sequences,
                 )
             elif self.args.model_type in ["mbart"]:
-                # tgt_lang_token = self.decoder_tokenizer._convert_token_to_id_with_added_voc(
-                #     self.args.tgt_lang
-                # )
-
-                outputs = self.model.generate(
-                    input_ids=input_ids,
-                    # decoder_start_token_id=tgt_lang_token,
-                    decoder_start_token_id=self.decoder_tokenizer.lang_code_to_id[
-                        self.args.tgt_lang
-                    ],
-                    num_beams=self.args.num_beams,
-                    # max_length=self.args.max_length,
-                    max_new_tokens=self.args.max_length,
-                    length_penalty=self.args.length_penalty,
-                    early_stopping=self.args.early_stopping,
-                    repetition_penalty=self.args.repetition_penalty,
-                    do_sample=self.args.do_sample,
-                    top_k=self.args.top_k,
-                    top_p=self.args.top_p,
-                    num_return_sequences=self.args.num_return_sequences,
+                tgt_lang_token = self.decoder_tokenizer._convert_token_to_id(
+                    self.args.tgt_lang
                 )
-            elif self.args.model_type in ["mbart50"]:
-                # tgt_lang_token = self.decoder_tokenizer._convert_token_to_id_with_added_voc(
-                #     self.args.tgt_lang
-                # )
 
                 outputs = self.model.generate(
                     input_ids=input_ids,
-                    # decoder_start_token_id=tgt_lang_token,
-                    decoder_start_token_id=self.decoder_tokenizer.lang_code_to_id[
-                        self.args.tgt_lang
-                    ],
+                    decoder_start_token_id=tgt_lang_token,
                     num_beams=self.args.num_beams,
-                    # max_length=self.args.max_length,
-                    max_new_tokens=self.args.max_length,
+                    max_length=self.args.max_length,
                     length_penalty=self.args.length_penalty,
                     early_stopping=self.args.early_stopping,
                     repetition_penalty=self.args.repetition_penalty,
@@ -1358,9 +1321,6 @@ class Seq2SeqModel:
                     top_k=self.args.top_k,
                     top_p=self.args.top_p,
                     num_return_sequences=self.args.num_return_sequences,
-                    forced_bos_token_id=self.decoder_tokenizer.lang_code_to_id[
-                        self.args.tgt_lang
-                    ],
                 )
             elif self.args.model_type in ["rag-token", "rag-sequence"]:
                 outputs = self.model.generate(
@@ -1496,7 +1456,7 @@ class Seq2SeqModel:
         self, data, evaluate=False, no_cache=False, verbose=True, silent=False
     ):
         """
-        Creates a Seq2SeqDataset from data.
+        Creates a T5Dataset from data.
 
         Utility function for train() and eval() methods. Not intended to be used directly.
         """
@@ -1525,17 +1485,13 @@ class Seq2SeqModel:
                     encoder_tokenizer, decoder_tokenizer, args, data, mode
                 )
             else:
-                if args.model_type in ["bart", "mbart", "mbart50", "marian"]:
+                if args.model_type in ["bart", "mbart", "marian"]:
                     return SimpleSummarizationDataset(
                         encoder_tokenizer, self.args, data, mode
                     )
                 else:
                     return Seq2SeqDataset(
-                        encoder_tokenizer,
-                        decoder_tokenizer,
-                        self.args,
-                        data,
-                        mode,
+                        encoder_tokenizer, decoder_tokenizer, self.args, data, mode,
                     )
 
     def _create_training_progress_scores(self, **kwargs):
@@ -1559,6 +1515,7 @@ class Seq2SeqModel:
         scheduler=None,
         model=None,
         results=None,
+        dataset=None,
     ):
         if not output_dir:
             output_dir = self.args.output_dir
@@ -1574,7 +1531,6 @@ class Seq2SeqModel:
             if self.args.model_type in [
                 "bart",
                 "mbart",
-                "mbart50",
                 "marian",
                 "rag-token",
                 "rag-sequence",
@@ -1586,8 +1542,6 @@ class Seq2SeqModel:
                 if self.args.model_type in [
                     "bart",
                     "mbart",
-                    "mbart50",
-                    "marian",
                     "rag-token",
                     "rag-sequence",
                 ]:
@@ -1652,18 +1606,22 @@ class Seq2SeqModel:
         device = self.device
         if self.args.model_type in ["bart", "marian"]:
             pad_token_id = self.encoder_tokenizer.pad_token_id
-            source_ids, source_mask, labels = (
+            source_ids, source_mask, y = (
                 batch["source_ids"],
                 batch["source_mask"],
                 batch["target_ids"],
             )
+            y_ids = y[:, :-1].contiguous()
+            labels = y[:, 1:].clone()
+            labels[y[:, 1:] == pad_token_id] = -100
 
             inputs = {
                 "input_ids": source_ids.to(device),
                 "attention_mask": source_mask.to(device),
+                "decoder_input_ids": y_ids.to(device),
                 "labels": labels.to(device),
             }
-        elif self.args.model_type in ["mbart", "mbart50"]:
+        elif self.args.model_type in ["mbart"]:
             inputs = {
                 "input_ids": batch["input_ids"].to(device),
                 "attention_mask": batch["attention_mask"].to(device),
@@ -1710,3 +1668,6 @@ class Seq2SeqModel:
         args = Seq2SeqArgs()
         args.load(input_dir)
         return args
+
+    def get_named_parameters(self):
+        return [n for n, p in self.model.named_parameters()]

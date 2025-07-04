@@ -15,7 +15,7 @@ from multiprocessing import Pool, cpu_count
 from pprint import pprint
 
 import torch
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from torch.utils.data import (
     DataLoader,
     Dataset,
@@ -24,8 +24,8 @@ from torch.utils.data import (
     TensorDataset,
 )
 from tqdm import tqdm, trange
-from torch.optim import AdamW
 from transformers import (
+    AdamW,
     SquadExample,
     XLMTokenizer,
     get_linear_schedule_with_warmup,
@@ -203,7 +203,7 @@ def convert_example_to_feature(example_row):
     tok_to_orig_index = []
     orig_to_tok_index = []
     all_doc_tokens = []
-    for i, token in enumerate(example.doc_tokens):
+    for (i, token) in enumerate(example.doc_tokens):
         orig_to_tok_index.append(len(all_doc_tokens))
         sub_tokens = tokenizer.tokenize(token)
         for sub_token in sub_tokens:
@@ -249,7 +249,7 @@ def convert_example_to_feature(example_row):
             break
         start_offset += min(length, doc_stride)
 
-    for doc_span_index, doc_span in enumerate(doc_spans):
+    for (doc_span_index, doc_span) in enumerate(doc_spans):
         tokens = []
         token_to_orig_map = {}
         token_is_max_context = {}
@@ -632,7 +632,8 @@ def convert_examples_to_features(
             )
     else:
         features = []
-        for example_index, example in enumerate(tqdm(examples, disable=silent)):
+        for (example_index, example) in enumerate(tqdm(examples, disable=silent)):
+
             # if example_index % 100 == 0:
             #     logger.info('Converting %s/%s pos %s neg %s', example_index, len(examples), cnt_pos, cnt_neg)
 
@@ -644,7 +645,7 @@ def convert_examples_to_features(
             tok_to_orig_index = []
             orig_to_tok_index = []
             all_doc_tokens = []
-            for i, token in enumerate(example.doc_tokens):
+            for (i, token) in enumerate(example.doc_tokens):
                 orig_to_tok_index.append(len(all_doc_tokens))
                 sub_tokens = tokenizer.tokenize(token)
                 for sub_token in sub_tokens:
@@ -690,7 +691,7 @@ def convert_examples_to_features(
                     break
                 start_offset += min(length, doc_stride)
 
-            for doc_span_index, doc_span in enumerate(doc_spans):
+            for (doc_span_index, doc_span) in enumerate(doc_spans):
                 tokens = []
                 token_to_orig_map = {}
                 token_is_max_context = {}
@@ -890,7 +891,7 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
     # and 0 right context.
     best_score = None
     best_span_index = None
-    for span_index, doc_span in enumerate(doc_spans):
+    for (span_index, doc_span) in enumerate(doc_spans):
         end = doc_span.start + doc_span.length - 1
         if position < doc_span.start:
             continue
@@ -946,7 +947,7 @@ def write_predictions(
     all_nbest_json = collections.OrderedDict()
     scores_diff_json = collections.OrderedDict()
 
-    for example_index, example in enumerate(all_examples):
+    for (example_index, example) in enumerate(all_examples):
         features = example_index_to_features[example_index]
 
         prelim_predictions = []
@@ -955,7 +956,7 @@ def write_predictions(
         min_null_feature_index = 0  # the paragraph slice with min null score
         null_start_logit = 0  # the start logit at the slice with min null score
         null_end_logit = 0  # the end logit at the slice with min null score
-        for feature_index, feature in enumerate(features):
+        for (feature_index, feature) in enumerate(features):
             result = unique_id_to_result[feature.unique_id]
             start_indexes = _get_best_indexes(result.start_logits, n_best_size)
             end_indexes = _get_best_indexes(result.end_logits, n_best_size)
@@ -1090,7 +1091,7 @@ def write_predictions(
         probs = _compute_softmax(total_scores)
 
         nbest_json = []
-        for i, entry in enumerate(nbest):
+        for (i, entry) in enumerate(nbest):
             output = collections.OrderedDict()
             output["text"] = entry.text
             output["probability"] = probs[i]
@@ -1187,14 +1188,14 @@ def write_predictions_extended(
     all_nbest_json = collections.OrderedDict()
     scores_diff_json = collections.OrderedDict()
 
-    for example_index, example in enumerate(all_examples):
+    for (example_index, example) in enumerate(all_examples):
         features = example_index_to_features[example_index]
 
         prelim_predictions = []
         # keep track of the minimum score of null start+end of position 0
         score_null = 1000000  # large and positive
 
-        for feature_index, feature in enumerate(features):
+        for (feature_index, feature) in enumerate(features):
             result = unique_id_to_result[feature.unique_id]
 
             cur_null_score = result.cls_logits
@@ -1305,7 +1306,7 @@ def write_predictions_extended(
         probs = _compute_softmax(total_scores)
 
         nbest_json = []
-        for i, entry in enumerate(nbest):
+        for (i, entry) in enumerate(nbest):
             output = collections.OrderedDict()
             output["text"] = entry.text
             output["probability"] = probs[i]
@@ -1362,6 +1363,7 @@ def get_best_predictions(
     version_2_with_negative,
     null_score_diff_threshold,
 ):
+
     example_index_to_features = collections.defaultdict(list)
     for feature in all_features:
         example_index_to_features[feature.example_index].append(feature)
@@ -1379,7 +1381,7 @@ def get_best_predictions(
     all_nbest_json = collections.OrderedDict()
     scores_diff_json = collections.OrderedDict()
 
-    for example_index, example in enumerate(all_examples):
+    for (example_index, example) in enumerate(all_examples):
         features = example_index_to_features[example_index]
 
         prelim_predictions = []
@@ -1388,7 +1390,7 @@ def get_best_predictions(
         min_null_feature_index = 0  # the paragraph slice with min null score
         null_start_logit = 0  # the start logit at the slice with min null score
         null_end_logit = 0  # the end logit at the slice with min null score
-        for feature_index, feature in enumerate(features):
+        for (feature_index, feature) in enumerate(features):
             result = unique_id_to_result[feature.unique_id]
             start_indexes = _get_best_indexes(result.start_logits, n_best_size)
             end_indexes = _get_best_indexes(result.end_logits, n_best_size)
@@ -1523,7 +1525,7 @@ def get_best_predictions(
         probs = _compute_softmax(total_scores)
 
         nbest_json = []
-        for i, entry in enumerate(nbest):
+        for (i, entry) in enumerate(nbest):
             output = collections.OrderedDict()
             output["text"] = entry.text
             output["probability"] = probs[i]
@@ -1597,14 +1599,14 @@ def get_best_predictions_extended(
     all_nbest_json = collections.OrderedDict()
     scores_diff_json = collections.OrderedDict()
 
-    for example_index, example in enumerate(all_examples):
+    for (example_index, example) in enumerate(all_examples):
         features = example_index_to_features[example_index]
 
         prelim_predictions = []
         # keep track of the minimum score of null start+end of position 0
         score_null = 1000000  # large and positive
 
-        for feature_index, feature in enumerate(features):
+        for (feature_index, feature) in enumerate(features):
             result = unique_id_to_result[feature.unique_id]
 
             cur_null_score = result.cls_logits
@@ -1720,7 +1722,7 @@ def get_best_predictions_extended(
         probs = _compute_softmax(total_scores)
 
         nbest_json = []
-        for i, entry in enumerate(nbest):
+        for (i, entry) in enumerate(nbest):
             output = collections.OrderedDict()
             output["text"] = entry.text
             output["probability"] = probs[i]
@@ -1912,7 +1914,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     def _strip_spaces(text):
         ns_chars = []
         ns_to_s_map = collections.OrderedDict()
-        for i, c in enumerate(text):
+        for (i, c) in enumerate(text):
             if c == " ":
                 continue
             ns_to_s_map[len(ns_chars)] = i
@@ -1950,7 +1952,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     # We then project the characters in `pred_text` back to `orig_text` using
     # the character-to-character alignment.
     tok_s_to_ns_map = {}
-    for i, tok_index in tok_ns_to_s_map.items():
+    for (i, tok_index) in tok_ns_to_s_map.items():
         tok_s_to_ns_map[tok_index] = i
 
     orig_start_position = None

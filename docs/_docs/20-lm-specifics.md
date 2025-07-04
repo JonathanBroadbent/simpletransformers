@@ -57,7 +57,6 @@ New model types are regularly added to the library. Language Modeling tasks curr
 | GPT-2      | gpt2                                   |
 | Longformer | longformer                             |
 | OpenAI GPT | openai-gpt                             |
-| RemBERT    | rembert                                |
 | RoBERTa    | roberta                                |
 | XLMRoBERTa | xlmroberta                             |
 

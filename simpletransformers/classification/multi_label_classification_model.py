@@ -24,16 +24,8 @@ from transformers import (
     HerbertTokenizer,
     FlaubertConfig,
     FlaubertTokenizer,
-    LayoutLMConfig,
-    LayoutLMTokenizerFast,
     LongformerConfig,
     LongformerTokenizer,
-    NystromformerConfig,
-    # NystromformerTokenizer,
-    NystromformerForSequenceClassification,
-    RemBertConfig,
-    RemBertForSequenceClassification,
-    RemBertTokenizer,
     RobertaConfig,
     RobertaTokenizer,
     XLMConfig,
@@ -57,10 +49,7 @@ from simpletransformers.custom_models.models import (
     DistilBertForMultiLabelSequenceClassification,
     ElectraForMultiLabelSequenceClassification,
     FlaubertForMultiLabelSequenceClassification,
-    LayoutLMForMultiLabelSequenceClassification,
     LongformerForMultiLabelSequenceClassification,
-    NystromformerForMultiLabelSequenceClassification,
-    RemBertForMultiLabelSequenceClassification,
     RobertaForMultiLabelSequenceClassification,
     XLMForMultiLabelSequenceClassification,
     XLMRobertaForMultiLabelSequenceClassification,
@@ -89,6 +78,7 @@ class MultiLabelClassificationModel(ClassificationModel):
         cuda_device=-1,
         **kwargs,
     ):
+
         """
         Initializes a MultiLabelClassification model.
 
@@ -149,25 +139,10 @@ class MultiLabelClassificationModel(ClassificationModel):
                 FlaubertForMultiLabelSequenceClassification,
                 FlaubertTokenizer,
             ),
-            "layoutlm": (
-                LayoutLMConfig,
-                LayoutLMForMultiLabelSequenceClassification,
-                LayoutLMTokenizerFast,
-            ),
             "longformer": (
                 LongformerConfig,
                 LongformerForMultiLabelSequenceClassification,
                 LongformerTokenizer,
-            ),
-            "nystromformer": (
-                NystromformerConfig,
-                NystromformerForMultiLabelSequenceClassification,
-                BigBirdTokenizer,
-            ),
-            "rembert": (
-                RemBertConfig,
-                RemBertForMultiLabelSequenceClassification,
-                RemBertTokenizer,
             ),
             "roberta": (
                 RobertaConfig,
@@ -225,7 +200,6 @@ class MultiLabelClassificationModel(ClassificationModel):
             self.config = config_class.from_pretrained(model_name, **self.args.config)
             self.num_labels = self.config.num_labels
         self.pos_weight = pos_weight
-        self.loss_fct = None
 
         if use_cuda:
             if torch.cuda.is_available():

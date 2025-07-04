@@ -55,6 +55,7 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
         inputs_embeds=None,
         labels=None,
     ):
+
         discriminator_hidden_states = self.electra(
             input_ids,
             attention_mask,

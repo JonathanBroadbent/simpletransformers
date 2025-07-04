@@ -49,6 +49,7 @@ class LanguageGenerationModel:
         cuda_device=-1,
         **kwargs,
     ):
+
         """
         Initializes a LanguageGenerationModel model.
 
@@ -137,15 +138,13 @@ class LanguageGenerationModel:
             )
 
         self.model = model_class.from_pretrained(
-            model_name,
-            config=self.config,
-            cache_dir=self.args.cache_dir,
-            **kwargs,
+            model_name, config=self.config, cache_dir=self.args.cache_dir, **kwargs,
         )
 
         self.model.to(self.device)
 
     def generate(self, prompt=None, args=None, verbose=True):
+
         """
         Generate text using a LanguageGenerationModel
 

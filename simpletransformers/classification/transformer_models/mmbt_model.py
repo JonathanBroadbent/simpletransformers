@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
-from transformers.models.deprecated.mmbt.modeling_mmbt import MMBTModel
+from transformers.models.mmbt.modeling_mmbt import MMBTModel
 
 
 class MMBTForClassification(nn.Module):
@@ -55,6 +55,7 @@ class MMBTForClassification(nn.Module):
         inputs_embeds=None,
         labels=None,
     ):
+
         outputs = self.mmbt(
             input_modal=input_modal,
             input_ids=input_ids,

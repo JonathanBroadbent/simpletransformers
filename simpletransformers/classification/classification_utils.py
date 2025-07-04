@@ -26,11 +26,6 @@ from collections import Counter
 from io import open
 from multiprocessing import Pool, cpu_count
 
-try:
-    from collections import Iterable, Mapping
-except ImportError:
-    from collections.abc import Iterable, Mapping
-
 import torch
 import torch.nn as nn
 from scipy.stats import pearsonr, spearmanr
@@ -61,7 +56,7 @@ class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
     def __init__(
-        self, guid, text_a, text_b=None, label=None, x0=None, y0=None, x1=None, y1=None, temperature=None
+        self, guid, text_a, text_b=None, label=None, x0=None, y0=None, x1=None, y1=None
     ):
         """
         Constructs a InputExample.
@@ -84,41 +79,18 @@ class InputExample(object):
             self.bboxes = None
         else:
             self.bboxes = [[a, b, c, d] for a, b, c, d in zip(x0, y0, x1, y1)]
-        self.temperature = temperature
-
-    def __repr__(self):
-        if self.bboxes:
-            return str(
-                {
-                    "guid": self.guid,
-                    "text_a": self.text_a,
-                    "text_b": self.text_b,
-                    "label": self.label,
-                    "bboxes": self.bboxes,
-                }
-            )
-        else:
-            return str(
-                {
-                    "guid": self.guid,
-                    "text_a": self.text_a,
-                    "text_b": self.text_b,
-                    "label": self.label,
-                }
-            )
 
 
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id, bboxes=None, temperature=None):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id, bboxes=None):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
         if bboxes:
             self.bboxes = bboxes
-        self.temperature=temperature
 
 
 def preprocess_data_multiprocessing(data):
@@ -209,16 +181,12 @@ def build_classification_dataset(
     else:
         logger.info(" Converting to features started. Cache is not used.")
 
-        temperature, text_b = None, None
         if len(data) == 3:
-            # check the dtype of data
-            if isinstance(data[1][0], str):
-                # Sentence pair task
-                text_a, text_b, labels = data
-            else:
-                text_a, labels, temperature = data
+            # Sentence pair task
+            text_a, text_b, labels = data
         else:
             text_a, labels = data
+            text_b = None
 
         # If labels_map is defined, then labels need to be replaced with ints
         if args.labels_map and not args.regression:
@@ -255,7 +223,7 @@ def build_classification_dataset(
                 examples = list(
                     tqdm(
                         p.imap(preprocess_data_multiprocessing, data),
-                        total=len(text_a) // chunksize,
+                        total=len(text_a),
                         disable=args.silent,
                     )
                 )
@@ -273,22 +241,19 @@ def build_classification_dataset(
             labels = torch.tensor(labels, dtype=torch.long)
         elif output_mode == "regression":
             labels = torch.tensor(labels, dtype=torch.float)
-        if temperature is not None:
-            temperature = torch.tensor(temperature, dtype=torch.float)
-        else:
-            temperature = torch.tensor([298.0] * len(labels), dtype=torch.float)
-        data = (examples, labels, temperature)
+
+        data = (examples, labels)
 
         if not args.no_cache and not no_cache:
             logger.info(" Saving features into cached file %s", cached_features_file)
             torch.save(data, cached_features_file)
 
-    return data
+    return (examples, labels)
 
 
 class ClassificationDataset(Dataset):
     def __init__(self, data, tokenizer, args, mode, multi_label, output_mode, no_cache):
-        self.examples, self.labels, self.temperature = build_classification_dataset(
+        self.examples, self.labels = build_classification_dataset(
             data, tokenizer, args, mode, multi_label, output_mode, no_cache
         )
 
@@ -296,12 +261,11 @@ class ClassificationDataset(Dataset):
         return len(self.examples["input_ids"])
 
     def __getitem__(self, index):
-        item = {key: self.examples[key][index] for key in self.examples}
-        # add temperature if present
-        if hasattr(self, "temperature"):
-            item["temperature"] = self.temperature[index]
+        return (
+            {key: self.examples[key][index] for key in self.examples},
+            self.labels[index],
+        )
 
-        return (item, self.labels[index])
 
 def map_labels_to_numeric(example, multi_label, args):
     if multi_label:
@@ -335,7 +299,7 @@ def load_hf_dataset(data, tokenizer, args, multi_label):
         batched=True,
     )
 
-    if args.model_type in ["bert", "xlnet", "albert", "layoutlm", "layoutlmv2"]:
+    if args.model_type in ["bert", "xlnet", "albert", "layoutlm"]:
         dataset.set_format(
             type="pt",
             columns=["input_ids", "token_type_ids", "attention_mask", "labels"],
@@ -813,6 +777,7 @@ class JsonlDataset(Dataset):
         data_type_extension=None,
         multi_label=False,
     ):
+
         self.text_label = text_label if text_label else "text"
         self.labels_label = labels_label if labels_label else "labels"
         self.images_label = images_label if images_label else "images"
@@ -1008,18 +973,3 @@ class LazyClassificationDataset(Dataset):
 
     def __len__(self):
         return self.num_entries
-
-
-def flatten_results(results, parent_key="", sep="/"):
-    out = []
-    if isinstance(results, Mapping):
-        for key, value in results.items():
-            pkey = parent_key + sep + str(key) if parent_key else str(key)
-            out.extend(flatten_results(value, parent_key=pkey).items())
-    elif isinstance(results, Iterable):
-        for key, value in enumerate(results):
-            pkey = parent_key + sep + str(key) if parent_key else str(key)
-            out.extend(flatten_results(value, parent_key=pkey).items())
-    else:
-        out.append((parent_key, results))
-    return dict(out)

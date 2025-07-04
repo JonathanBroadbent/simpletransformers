@@ -19,7 +19,7 @@ from sklearn.metrics import (
     matthews_corrcoef,
     mean_squared_error,
 )
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm.auto import tqdm, trange
@@ -31,8 +31,7 @@ from transformers.optimization import (
     get_cosine_with_hard_restarts_schedule_with_warmup,
     get_polynomial_decay_schedule_with_warmup,
 )
-from torch.optim import AdamW
-from transformers.optimization import Adafactor
+from transformers.optimization import AdamW, Adafactor
 from transformers import (
     AlbertConfig,
     AlbertForQuestionAnswering,
@@ -118,6 +117,7 @@ class QuestionAnsweringModel:
     def __init__(
         self, model_type, model_name, args=None, use_cuda=True, cuda_device=-1, **kwargs
     ):
+
         """
         Initializes a QuestionAnsweringModel model.
 
@@ -132,7 +132,7 @@ class QuestionAnsweringModel:
 
         MODEL_CLASSES = {
             "albert": (AlbertConfig, AlbertForQuestionAnswering, AlbertTokenizer),
-            "auto": (AutoConfig, AutoModelForQuestionAnswering, AutoTokenizer),
+            "auto": (AutoConfig, AutoTokenizer, AutoModelForQuestionAnswering),
             "bart": (BartConfig, BartForQuestionAnswering, BartTokenizer),
             "bert": (BertConfig, BertForQuestionAnswering, BertTokenizer),
             "camembert": (
@@ -260,7 +260,6 @@ class QuestionAnsweringModel:
         self.args.model_name = model_name
         self.args.model_type = model_type
 
-        self.wandb_run_id = None
         if self.args.wandb_project and not wandb_available:
             warnings.warn(
                 "wandb_project specified but wandb is not available. Wandb disabled."
@@ -485,7 +484,7 @@ class QuestionAnsweringModel:
         model = self.model
         args = self.args
 
-        tb_writer = SummaryWriter(log_dir=args.tensorboard_dir)
+        tb_writer = SummaryWriter(logdir=args.tensorboard_dir)
         train_sampler = RandomSampler(train_dataset)
         train_dataloader = DataLoader(
             train_dataset,
@@ -568,7 +567,6 @@ class QuestionAnsweringModel:
                 optimizer_grouped_parameters,
                 lr=args.learning_rate,
                 eps=args.adam_epsilon,
-                betas=args.adam_betas,
             )
         elif args.optimizer == "Adafactor":
             optimizer = Adafactor(
@@ -583,7 +581,7 @@ class QuestionAnsweringModel:
                 relative_step=args.adafactor_relative_step,
                 warmup_init=args.adafactor_warmup_init,
             )
-
+            print("Using Adafactor for T5")
         else:
             raise ValueError(
                 "{} is not a valid optimizer class. Please use one of ('AdamW', 'Adafactor') instead.".format(
@@ -652,7 +650,7 @@ class QuestionAnsweringModel:
 
         if args.model_name and os.path.exists(args.model_name):
             try:
-                # set global_step to global_step of last saved checkpoint from model path
+                # set global_step to gobal_step of last saved checkpoint from model path
                 checkpoint_suffix = args.model_name.split("/")[-1].split("-")
                 if len(checkpoint_suffix) > 2:
                     checkpoint_suffix = checkpoint_suffix[1]
@@ -689,7 +687,6 @@ class QuestionAnsweringModel:
             )
             wandb.run._label(repo="simpletransformers")
             wandb.watch(self.model)
-            self.wandb_run_id = wandb.run.id
 
         if args.fp16:
             from torch.cuda import amp
@@ -706,7 +703,7 @@ class QuestionAnsweringModel:
             )
             batch_iterator = tqdm(
                 train_dataloader,
-                desc=f"Running Epoch {epoch_number + 1} of {args.num_train_epochs}",
+                desc=f"Running Epoch {epoch_number} of {args.num_train_epochs}",
                 disable=args.silent,
                 mininterval=0,
             )
@@ -735,7 +732,7 @@ class QuestionAnsweringModel:
 
                 if show_running_loss:
                     batch_iterator.set_description(
-                        f"Epochs {epoch_number + 1}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
+                        f"Epochs {epoch_number}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
                     )
 
                 if args.gradient_accumulation_steps > 1:
@@ -937,8 +934,7 @@ class QuestionAnsweringModel:
 
             epoch_number += 1
             output_dir_current = os.path.join(
-                output_dir,
-                "checkpoint-{}-epoch-{}".format(global_step, epoch_number),
+                output_dir, "checkpoint-{}-epoch-{}".format(global_step, epoch_number)
             )
 
             if args.save_model_every_epoch or args.evaluate_during_training:

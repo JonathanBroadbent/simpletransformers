@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="simpletransformers",
-    version="0.70.1",
+    version="0.61.13",
     author="Thilina Rajapakse",
     author_email="chaturangarajapakshe@gmail.com",
     description="An easy-to-use wrapper library for the Transformers library.",
@@ -26,12 +26,11 @@ setup(
         "requests",
         "tqdm>=4.47.0",
         "regex",
-        "transformers>=4.31.0",
+        "transformers>=4.2.0",
         "datasets",
         "scipy",
         "scikit-learn",
         "seqeval",
-        "tensorboard",
         "tensorboardx",
         "pandas",
         "tokenizers",
