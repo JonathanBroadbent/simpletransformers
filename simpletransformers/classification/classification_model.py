@@ -13,6 +13,7 @@ from dataclasses import asdict
 from multiprocessing import cpu_count
 import tempfile
 from pathlib import Path
+import pdb
 
 from collections import Counter
 import numpy as np
@@ -140,7 +141,7 @@ from simpletransformers.classification.transformer_models.xlnet_model import (
 from simpletransformers.config.global_args import global_args
 from simpletransformers.config.model_args import ClassificationArgs
 from simpletransformers.config.utils import sweep_config_to_sweep_values
-from simpletransformers.custom_models.models import ElectraForSequenceClassification
+from simpletransformers.custom_models.models import BertForSequenceClassificationWithFeature
 
 
 try:
@@ -172,6 +173,8 @@ MODELS_WITH_ADD_PREFIX_SPACE = [
 ]
 
 MODELS_WITHOUT_SLIDING_WINDOW_SUPPORT = ["squeezebert"]
+
+DEFAULT_TEMP = 298
 
 
 class ClassificationModel:
@@ -212,6 +215,7 @@ class ClassificationModel:
             "albert": (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer),
             "auto": (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
             "bert": (BertConfig, BertForSequenceClassification, BertTokenizerFast),
+            "bertwithfeature": (BertConfig, BertForSequenceClassificationWithFeature, BertTokenizerFast),
             "bertweet": (
                 RobertaConfig,
                 RobertaForSequenceClassification,
@@ -594,6 +598,7 @@ class ClassificationModel:
                                 train_df["y0"],
                                 train_df["x1"],
                                 train_df["y1"],
+                                train_df['temperature'] if 'temperature' in train_df.columns else [DEFAULT_TEMP] * len(train_df)
                             )
                         )
                     ]
@@ -601,6 +606,7 @@ class ClassificationModel:
                     train_examples = (
                         train_df["text"].astype(str).tolist(),
                         train_df["labels"].tolist(),
+                        train_df["temperature"].tolist() if "temperature" in train_df.columns else [DEFAULT_TEMP] * len(train_df)
                     )
             elif "text_a" in train_df.columns and "text_b" in train_df.columns:
                 if self.args.model_type == "layoutlm":
@@ -1387,6 +1393,7 @@ class ClassificationModel:
                     eval_examples = (
                         eval_df["text"].astype(str).tolist(),
                         eval_df["labels"].tolist(),
+                        eval_df['temperature'].astype(float).tolist() if 'temp' in eval_df.columns else [DEFAULT_TEMP] * len(eval_df),
                     )
             elif "text_a" in eval_df.columns and "text_b" in eval_df.columns:
                 if self.args.model_type == "layoutlm":
@@ -2169,10 +2176,14 @@ class ClassificationModel:
     def _get_inputs_dict(self, batch, no_hf=False):
         if self.args.use_hf_datasets and not no_hf:
             return {key: value.to(self.device) for key, value in batch.items()}
-        if isinstance(batch[0], dict):
+        if isinstance(batch[0], dict) or isinstance(batch[0].data, dict):
             inputs = {
-                key: value.squeeze(1).to(self.device) for key, value in batch[0].items()
+                key: value.squeeze(1).to(self.device) if value.ndim > 1 else value.to(self.device)\
+                        for key, value in batch[0].items()
             }
+            # remove temperature
+            if "temperature" in inputs:
+                inputs.pop("temperature")
             inputs["labels"] = batch[1].to(self.device)
         else:
             batch = tuple(t.to(self.device) for t in batch)
