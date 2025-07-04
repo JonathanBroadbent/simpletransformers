@@ -274,10 +274,10 @@ def build_classification_dataset(
         elif output_mode == "regression":
             labels = torch.tensor(labels, dtype=torch.float)
         if temperature is not None:
-            temperature torch.tensor(temperature, dtype=torch.float)
-            data = (examples, labels, temperature)
+            temperature = torch.tensor(temperature, dtype=torch.float)
         else:
-            data = (examples, labels)
+            temperature = torch.tensor([298.0] * len(labels), dtype=torch.float)
+        data = (examples, labels, temperature)
 
         if not args.no_cache and not no_cache:
             logger.info(" Saving features into cached file %s", cached_features_file)
@@ -299,7 +299,7 @@ class ClassificationDataset(Dataset):
         item = {key: self.examples[key][index] for key in self.examples}
         # add temperature if present
         if hasattr(self, "temperature"):
-            item["temperature"] = self.["temperature"][index]
+            item["temperature"] = self.temperature[index]
 
         return (item, self.labels[index])
 

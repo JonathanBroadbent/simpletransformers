@@ -59,6 +59,7 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaLMHead,
     MaskedLMOutput,
 )
+import pdb
 from transformers.models.xlm_roberta.configuration_xlm_roberta import XLMRobertaConfig
 from simpletransformers.custom_models.retrieval_autoencoder import Autoencoder
 
@@ -72,6 +73,15 @@ class BertForSequenceClassificationWithFeature(BertForSequenceClassification):
         temperature=None,
         **kwargs
     ):
+        # initialize super with config.hidden_size + 1 for temperature
+        if temperature is not None:
+            if "config" in kwargs:
+                config = kwargs["config"]
+            else:
+                config = self.config
+            self.classifier = nn.Linear(config.hidden_size + 1, self.num_labels)
+            self.classifer = self.classifier.to(input_ids.device)
+
         outputs = self.bert(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -82,7 +92,7 @@ class BertForSequenceClassificationWithFeature(BertForSequenceClassification):
         pooled_output = self.dropout(pooled_output)
         if temperature is not None:
             # Ensure temperature shape is (batch_size, 1)
-            pooled_output = torch.cat([pooled_output, temperature], dim=1)
+            pooled_output = torch.cat([pooled_output, temperature.unsqueeze(1)], dim=1)
         logits = self.classifier(pooled_output)
         loss = None
         if labels is not None:

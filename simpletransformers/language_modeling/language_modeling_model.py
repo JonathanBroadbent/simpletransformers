@@ -104,7 +104,7 @@ from transformers import (
     XLMRobertaConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaTokenizer,
-    GenerationConfig,
+    # GenerationConfig,
 )
 from transformers.data.datasets.language_modeling import (
     LineByLineTextDataset,

@@ -13,6 +13,7 @@ from dataclasses import asdict
 from multiprocessing import cpu_count
 import tempfile
 from pathlib import Path
+import pdb
 
 from collections import Counter
 import numpy as np
@@ -1445,6 +1446,7 @@ class ClassificationModel:
                     eval_examples = (
                         eval_df["text"].astype(str).tolist(),
                         eval_df["labels"].tolist(),
+                        eval_df['temperature'].astype(float).tolist() if 'temp' in eval_df.columns else [DEFAULT_TEMP] * len(eval_df),
                     )
             elif "text_a" in eval_df.columns and "text_b" in eval_df.columns:
                 if self.args.model_type in ["layoutlm", "layoutlmv2"]:
@@ -2346,6 +2348,7 @@ class ClassificationModel:
         outputs = model(**inputs)
         # model outputs are always tuple in pytorch-transformers (see doc)
         loss = outputs[0]
+        # pdb.set_trace()
         if loss_fct:
             logits = outputs[1]
             labels = inputs["labels"]
@@ -2366,8 +2369,12 @@ class ClassificationModel:
             return {key: value.to(self.device) for key, value in batch.items()}
         if isinstance(batch[0], dict) or isinstance(batch[0].data, dict):
             inputs = {
-                key: value.squeeze(1).to(self.device) for key, value in batch[0].items()
+                key: value.squeeze(1).to(self.device) if value.ndim > 1 else value.to(self.device)\
+                        for key, value in batch[0].items()
             }
+            # remove temperature
+            if "temperature" in inputs:
+                inputs.pop("temperature")
             inputs["labels"] = batch[1].to(self.device)
         else:
             batch = tuple(t.to(self.device) for t in batch)
